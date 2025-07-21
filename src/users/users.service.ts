@@ -76,7 +76,9 @@ export class UsersService {
         throw new UnauthorizedException('Please confirm your password');
       }
       if (dto.password !== dto.confirmPassword) {
-        throw new UnauthorizedException('Passwords do not match');
+        throw new UnauthorizedException(
+          'Password and password confirmation do not match',
+        );
       }
       dto.password = await bcrypt.hash(dto.password, 10);
     }

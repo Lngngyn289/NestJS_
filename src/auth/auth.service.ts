@@ -33,7 +33,7 @@ export class AuthService {
     return buildUserWithTokenResponse(user, this.jwtService);
   }
 
-  async validateUser(
+  private async validateUser(
     email: string,
     password: string,
   ): Promise<Omit<User, 'password'>> {
@@ -47,7 +47,7 @@ export class AuthService {
     return rest;
   }
 
-  async login(user: Omit<User, 'password'>) {
+  private async login(user: Omit<User, 'password'>) {
     return buildUserWithTokenResponse(user, this.jwtService);
   }
 
