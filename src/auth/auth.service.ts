@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { CreateUserDto } from 'src/users/dtos/create-user.dto';
 import { JwtService } from '@nestjs/jwt';
+import { buildUserWithTokenResponse } from 'src/users/helpers/build-user-response';
+import { buildUserResponse } from 'src/users/helpers/build-user-response';
 import { BadRequestException } from '@nestjs/common';
 import { UnauthorizedException } from '@nestjs/common';
 import { User } from '@prisma/client';
@@ -28,11 +30,7 @@ export class AuthService {
       username: dto.username,
       password: hashed,
     });
-
-    return {
-      message: 'User registered',
-      user: { email: user.email, username: user.username },
-    };
+    return buildUserWithTokenResponse(user, this.jwtService);
   }
 
   async validateUser(
@@ -40,26 +38,17 @@ export class AuthService {
     password: string,
   ): Promise<Omit<User, 'password'>> {
     const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      throw new UnauthorizedException('Email is not registered');
-    }
-    if (!(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedException('Wrong Password');
-    }
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    if (!user) throw new UnauthorizedException('Email is not registered');
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) throw new UnauthorizedException('Wrong password');
+
+    const { password: _, ...rest } = user;
+    return rest;
   }
 
   async login(user: Omit<User, 'password'>) {
-    const payload = {
-      email: user.email,
-      username: user.username,
-      sub: user.id,
-    };
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: { email: user.email, username: user.username },
-    };
+    return buildUserWithTokenResponse(user, this.jwtService);
   }
 
   async loginWithCredentials(loginRequestDto: {
