@@ -22,6 +22,8 @@ model User {
 
   following UserFollow[] @relation("Following")
   followers UserFollow[] @relation("Followers")
+
+  comments  Comment[]
 }
 
 model Article {
@@ -36,6 +38,7 @@ model Article {
   author         User       @relation("UserArticles", fields: [authorId], references: [id], onDelete: Cascade)
   favoritedBy    User[]     @relation("UserFavorites")
   tagList        Tag[]      @relation("ArticleTags")
+  comments       Comment[] 
 }
 
 model UserFollow {
@@ -52,6 +55,20 @@ model Tag {
   name      String    @unique
   articles  Article[] @relation("ArticleTags")
 }
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  Int
+
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId Int
+}
+
 
 
 
