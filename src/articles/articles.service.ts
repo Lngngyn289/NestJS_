@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  InternalServerErrorException, // ✅ Thêm để dùng cho fallback error
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
@@ -20,40 +21,50 @@ export class ArticlesService {
     currentUser: User,
     dto: CreateArticleDto,
   ): Promise<ArticleResponseDto> {
-    const slug = generateSlug(dto.title);
+    try {
+      const slug = generateSlug(dto.title);
 
-    const article = await this.prisma.article.create({
-      data: {
-        ...dto,
-        slug,
-        authorId: currentUser.id,
-        tagList: {
-          connectOrCreate: dto.tagList.map((tag) => ({
-            where: { name: tag },
-            create: { name: tag },
-          })),
-        },
-      },
-      include: {
-        tagList: true,
-        favoritedBy: true,
-        author: {
-          include: {
-            followers: true,
+      const article = await this.prisma.article.create({
+        data: {
+          ...dto,
+          slug,
+          authorId: currentUser.id,
+          tagList: {
+            connectOrCreate: dto.tagList.map((tag) => ({
+              where: { name: tag },
+              create: { name: tag },
+            })),
           },
         },
-      },
-    });
+        include: {
+          tagList: true,
+          favoritedBy: true,
+          author: {
+            include: {
+              followers: true,
+            },
+          },
+        },
+      });
 
-    return buildArticleResponse(article, currentUser);
+      return buildArticleResponse(article, currentUser);
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Failed to create article');
+    }
   }
 
   async getArticleBySlug(
     slug: string,
     currentUser?: User,
   ): Promise<ArticleResponseDto> {
-    const article = await this.findArticleOrThrow(slug);
-    return buildArticleResponse(article, currentUser);
+    try {
+      const article = await this.findArticleOrThrow(slug);
+      return buildArticleResponse(article, currentUser);
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Failed to fetch article');
+    }
   }
 
   async updateArticle(
@@ -61,63 +72,80 @@ export class ArticlesService {
     currentUser: User,
     updateDto: UpdateArticleDto,
   ): Promise<ArticleResponseDto> {
-    const article = await this.findArticleOrThrow(slug);
+    try {
+      const article = await this.findArticleOrThrow(slug);
 
-    if (article.authorId !== currentUser.id) {
-      throw new ForbiddenException('You are not the author of this article');
-    }
+      if (article.authorId !== currentUser.id) {
+        throw new ForbiddenException('You are not the author of this article');
+      }
 
-    const newSlug = updateDto.title ? generateSlug(updateDto.title) : undefined;
+      const newSlug = updateDto.title
+        ? generateSlug(updateDto.title)
+        : undefined;
 
-    const updated = await this.prisma.article.update({
-      where: { slug },
-      data: {
-        ...updateDto,
-        slug: newSlug,
-      },
-      include: {
-        tagList: { select: { name: true } },
-        author: {
-          include: {
-            followers: true,
-          },
+      const updated = await this.prisma.article.update({
+        where: { slug },
+        data: {
+          ...updateDto,
+          slug: newSlug,
         },
-        favoritedBy: true,
-      },
-    });
+        include: {
+          tagList: { select: { name: true } },
+          author: {
+            include: {
+              followers: true,
+            },
+          },
+          favoritedBy: true,
+        },
+      });
 
-    return buildArticleResponse(updated, currentUser);
+      return buildArticleResponse(updated, currentUser);
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Failed to update article');
+    }
   }
 
   async deleteArticle(slug: string, currentUserId: number): Promise<void> {
-    const article = await this.findArticleOrThrow(slug);
-    if (article.authorId !== currentUserId) {
-      throw new ForbiddenException('You are not the author of this article');
-    }
+    try {
+      const article = await this.findArticleOrThrow(slug);
+      if (article.authorId !== currentUserId) {
+        throw new ForbiddenException('You are not the author of this article');
+      }
 
-    await this.prisma.article.delete({
-      where: { slug },
-    });
+      await this.prisma.article.delete({
+        where: { slug },
+      });
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Failed to delete article');
+    }
   }
 
   private async findArticleOrThrow(slug: string) {
-    const article = await this.prisma.article.findUnique({
-      where: { slug },
-      include: {
-        author: {
-          include: {
-            followers: true,
+    try {
+      const article = await this.prisma.article.findUnique({
+        where: { slug },
+        include: {
+          author: {
+            include: {
+              followers: true,
+            },
           },
+          tagList: true,
+          favoritedBy: true,
         },
-        tagList: true,
-        favoritedBy: true,
-      },
-    });
+      });
 
-    if (!article) {
-      throw new NotFoundException('Article not found');
+      if (!article) {
+        throw new NotFoundException('Article not found');
+      }
+
+      return article;
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Failed to fetch article');
     }
-
-    return article;
   }
 }
