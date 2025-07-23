@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildProfileResponse } from './helpers/build-profile-response';
 import { User } from '@prisma/client';
@@ -41,16 +45,25 @@ export class ProfilesService {
       throw new BadRequestException('You cannot follow yourself');
     }
 
-    try {
-      await this.prisma.userFollow.create({
-        data: {
+    const alreadyFollowing = await this.prisma.userFollow.findUnique({
+      where: {
+        followerId_followingId: {
           followerId: currentUser.id,
           followingId: user.id,
         },
-      });
-    } catch (error) {
+      },
+    });
+
+    if (alreadyFollowing) {
       throw new BadRequestException('Already following');
     }
+
+    await this.prisma.userFollow.create({
+      data: {
+        followerId: currentUser.id,
+        followingId: user.id,
+      },
+    });
 
     return buildProfileResponse(user, true);
   }
@@ -64,16 +77,16 @@ export class ProfilesService {
       throw new NotFoundException('User not found');
     }
 
-    try {
-      await this.prisma.userFollow.delete({
-        where: {
-          followerId_followingId: {
-            followerId: currentUser.id,
-            followingId: user.id,
-          },
+    const follow = await this.prisma.userFollow.findUnique({
+      where: {
+        followerId_followingId: {
+          followerId: currentUser.id,
+          followingId: user.id,
         },
-      });
-    } catch (error) {
+      },
+    });
+
+    if (!follow) {
       throw new BadRequestException('You are not following this user');
     }
 
