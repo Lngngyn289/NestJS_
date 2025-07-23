@@ -2,7 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  InternalServerErrorException, // ✅ Thêm để dùng cho fallback error
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
