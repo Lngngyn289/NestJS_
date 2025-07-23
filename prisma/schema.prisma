@@ -16,4 +16,43 @@ model User {
   image     String?  @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt @default(now())
+
+  articles  Article[] @relation("UserArticles")
+  favorites Article[] @relation("UserFavorites")
+
+  following UserFollow[] @relation("Following")
+  followers UserFollow[] @relation("Followers")
 }
+
+model Article {
+  id             Int        @id @default(autoincrement())
+  slug           String     @unique
+  title          String
+  description    String
+  body           String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  authorId       Int
+  author         User       @relation("UserArticles", fields: [authorId], references: [id], onDelete: Cascade)
+  favoritedBy    User[]     @relation("UserFavorites")
+  tagList        Tag[]      @relation("ArticleTags")
+}
+
+model UserFollow {
+  follower   User @relation("Following", fields: [followerId], references: [id])
+  followerId Int
+  following  User @relation("Followers", fields: [followingId], references: [id])
+  followingId Int
+  createdAt  DateTime @default(now())
+  @@id([followerId, followingId])
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  articles  Article[] @relation("ArticleTags")
+}
+
+
+
+
