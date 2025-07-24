@@ -9,10 +9,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
 import { CreateArticleDto } from './dtos/create-article-request.dto';
 import { UpdateArticleDto } from './dtos/update-article-request.dto';
-import { buildArticleResponse } from './helpers/build-article-response';
+import {
+  buildSingleArticleResponse,
+  buildMultipleArticlesResponse,
+} from './helpers/build-article-response';
 import { User } from '@prisma/client';
 import { generateSlug } from './helpers/slug-generate';
-import { ArticleResponseDto } from './dtos/article-response.dto';
+import { SingleArticleResponseDto } from './dtos/article-response.dto';
 
 @Injectable()
 export class ArticlesService {
@@ -21,7 +24,7 @@ export class ArticlesService {
   async createArticle(
     currentUser: User,
     dto: CreateArticleDto,
-  ): Promise<ArticleResponseDto> {
+  ): Promise<SingleArticleResponseDto> {
     try {
       const slug = generateSlug(dto.title);
 
@@ -48,7 +51,7 @@ export class ArticlesService {
         },
       });
 
-      return buildArticleResponse(article, currentUser);
+      return buildSingleArticleResponse(article, currentUser);
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Failed to create article');
@@ -58,10 +61,10 @@ export class ArticlesService {
   async getArticleBySlug(
     slug: string,
     currentUser?: User,
-  ): Promise<ArticleResponseDto> {
+  ): Promise<SingleArticleResponseDto> {
     try {
       const article = await this.findArticleOrThrow(slug);
-      return buildArticleResponse(article, currentUser);
+      return buildSingleArticleResponse(article, currentUser);
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Failed to fetch article');
@@ -72,7 +75,7 @@ export class ArticlesService {
     slug: string,
     currentUser: User,
     updateDto: UpdateArticleDto,
-  ): Promise<ArticleResponseDto> {
+  ): Promise<SingleArticleResponseDto> {
     try {
       const article = await this.findArticleOrThrow(slug);
 
@@ -101,7 +104,7 @@ export class ArticlesService {
         },
       });
 
-      return buildArticleResponse(updated, currentUser);
+      return buildSingleArticleResponse(updated, currentUser);
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Failed to update article');
@@ -127,7 +130,7 @@ export class ArticlesService {
   async favoriteArticle(
     slug: string,
     currentUser: User,
-  ): Promise<ArticleResponseDto> {
+  ): Promise<SingleArticleResponseDto> {
     const userId = currentUser.id;
 
     const article = await this.findArticleOrThrow(slug);
@@ -151,13 +154,13 @@ export class ArticlesService {
 
     const updatedArticle = await this.findArticleOrThrow(slug);
 
-    return buildArticleResponse(updatedArticle, currentUser);
+    return buildSingleArticleResponse(updatedArticle, currentUser);
   }
 
   async unfavoriteArticle(
     slug: string,
     currentUser: User,
-  ): Promise<ArticleResponseDto> {
+  ): Promise<SingleArticleResponseDto> {
     const userId = currentUser.id;
 
     const article = await this.findArticleOrThrow(slug);
@@ -181,7 +184,7 @@ export class ArticlesService {
 
     const updatedArticle = await this.findArticleOrThrow(slug);
 
-    return buildArticleResponse(updatedArticle, currentUser);
+    return buildSingleArticleResponse(updatedArticle, currentUser);
   }
 
   private async findArticleOrThrow(slug: string) {
