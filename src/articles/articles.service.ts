@@ -9,13 +9,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
 import { CreateArticleDto } from './dtos/create-article-request.dto';
 import { UpdateArticleDto } from './dtos/update-article-request.dto';
+import { QueryArticlesDto } from './dtos/query-articles.dto';
 import {
   buildSingleArticleResponse,
   buildMultipleArticlesResponse,
 } from './helpers/build-article-response';
 import { User } from '@prisma/client';
 import { generateSlug } from './helpers/slug-generate';
-import { SingleArticleResponseDto } from './dtos/article-response.dto';
+import {
+  SingleArticleResponseDto,
+  MultipleArticlesResponseDto,
+} from './dtos/article-response.dto';
 
 @Injectable()
 export class ArticlesService {
@@ -187,7 +191,110 @@ export class ArticlesService {
     return buildSingleArticleResponse(updatedArticle, currentUser);
   }
 
+  async getListArticles(
+    query: QueryArticlesDto,
+    currentUser?: User | null,
+  ): Promise<MultipleArticlesResponseDto> {
+    const { tag, author, favorited, limit = 20, offset = 0 } = query;
+    const where: any = {};
+
+    if (tag) {
+      where.tagList = {
+        some: { name: tag },
+      };
+    }
+
+    if (author) {
+      const foundAuthor = await this.prisma.user.findUnique({
+        where: { username: author },
+      });
+
+      if (!foundAuthor) {
+        return { articles: [], articlesCount: 0 };
+      }
+
+      where.authorId = foundAuthor.id;
+    }
+
+    if (favorited) {
+      const favoriter = await this.prisma.user.findUnique({
+        where: { username: favorited },
+        include: { favorites: true },
+      });
+
+      if (!favoriter || favoriter.favorites.length === 0) {
+        return { articles: [], articlesCount: 0 };
+      }
+
+      const favoritedArticleIds = favoriter.favorites.map((a) => a.id);
+      where.id = { in: favoritedArticleIds };
+    }
+
+    const [articles, articlesCount] = await this.prisma.$transaction([
+      this.prisma.article.findMany({
+        where,
+        skip: offset,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          tagList: true,
+          favoritedBy: true,
+          author: {
+            include: {
+              followers: true,
+            },
+          },
+        },
+      }),
+      this.prisma.article.count({ where }),
+    ]);
+
+    return buildMultipleArticlesResponse(articles, articlesCount, currentUser);
+  }
+
+  async getFeedArticles(
+    query: QueryArticlesDto,
+    currentUser: User,
+  ): Promise<MultipleArticlesResponseDto> {
+    const { limit = 20, offset = 0 } = query;
+
+    const following = await this.prisma.userFollow.findMany({
+      where: { followerId: currentUser.id },
+      select: { followingId: true },
+    });
+
+    const followedUserIds = following.map((f) => f.followingId);
+
+    if (followedUserIds.length === 0) {
+      return { articles: [], articlesCount: 0 };
+    }
+
+    const [articles, articlesCount] = await this.prisma.$transaction([
+      this.prisma.article.findMany({
+        where: { authorId: { in: followedUserIds } },
+        skip: offset,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          tagList: true,
+          favoritedBy: true,
+          author: {
+            include: {
+              followers: true,
+            },
+          },
+        },
+      }),
+      this.prisma.article.count({
+        where: { authorId: { in: followedUserIds } },
+      }),
+    ]);
+
+    return buildMultipleArticlesResponse(articles, articlesCount, currentUser);
+  }
+
   private async findArticleOrThrow(slug: string) {
+    console.log('Looking for article with slug:', slug);
     const article = await this.prisma.article.findUnique({
       where: { slug },
       include: {
