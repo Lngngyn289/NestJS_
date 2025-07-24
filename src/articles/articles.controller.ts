@@ -55,4 +55,20 @@ export class ArticlesController {
   ): Promise<void> {
     await this.articlesService.deleteArticle(slug, user.id);
   }
+
+  @Post(':slug/favorite')
+  async favoriteArticle(
+    @Param('slug') slug: string,
+    @CurrentUser() currentUser: User,
+  ): Promise<ArticleResponseDto> {
+    return this.articlesService.favoriteArticle(slug, currentUser);
+  }
+
+  @Delete(':slug/favorite')
+  async unfavoriteArticle(
+    @Param('slug') slug: string,
+    @CurrentUser() currentUser: User,
+  ): Promise<ArticleResponseDto> {
+    return this.articlesService.unfavoriteArticle(slug, currentUser);
+  }
 }

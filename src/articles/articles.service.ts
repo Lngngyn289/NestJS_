@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
@@ -123,29 +124,82 @@ export class ArticlesService {
     }
   }
 
-  private async findArticleOrThrow(slug: string) {
-    try {
-      const article = await this.prisma.article.findUnique({
-        where: { slug },
-        include: {
-          author: {
-            include: {
-              followers: true,
-            },
-          },
-          tagList: true,
-          favoritedBy: true,
-        },
-      });
+  async favoriteArticle(
+    slug: string,
+    currentUser: User,
+  ): Promise<ArticleResponseDto> {
+    const userId = currentUser.id;
 
-      if (!article) {
-        throw new NotFoundException('Article not found');
-      }
+    const article = await this.findArticleOrThrow(slug);
 
-      return article;
-    } catch (error) {
-      console.error(error);
-      throw new InternalServerErrorException('Failed to fetch article');
+    const alreadyFavorited = article.favoritedBy.some(
+      (user) => user.id === userId,
+    );
+
+    if (alreadyFavorited) {
+      throw new BadRequestException('You have already favorited this article');
     }
+
+    await this.prisma.article.update({
+      where: { id: article.id },
+      data: {
+        favoritedBy: {
+          connect: { id: userId },
+        },
+      },
+    });
+
+    const updatedArticle = await this.findArticleOrThrow(slug);
+
+    return buildArticleResponse(updatedArticle, currentUser);
+  }
+
+  async unfavoriteArticle(
+    slug: string,
+    currentUser: User,
+  ): Promise<ArticleResponseDto> {
+    const userId = currentUser.id;
+
+    const article = await this.findArticleOrThrow(slug);
+
+    const alreadyFavorited = article.favoritedBy.some(
+      (user) => user.id === userId,
+    );
+
+    if (!alreadyFavorited) {
+      throw new BadRequestException('You have not favorited this article');
+    }
+
+    await this.prisma.article.update({
+      where: { id: article.id },
+      data: {
+        favoritedBy: {
+          disconnect: { id: userId },
+        },
+      },
+    });
+
+    const updatedArticle = await this.findArticleOrThrow(slug);
+
+    return buildArticleResponse(updatedArticle, currentUser);
+  }
+
+  private async findArticleOrThrow(slug: string) {
+    const article = await this.prisma.article.findUnique({
+      where: { slug },
+      include: {
+        author: {
+          include: { followers: true },
+        },
+        tagList: true,
+        favoritedBy: true,
+      },
+    });
+
+    if (!article) {
+      throw new NotFoundException('Article not found');
+    }
+
+    return article;
   }
 }
